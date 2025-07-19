@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paper Glider - Voice-Controlled Game</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+        <div id="uiLayer">
+            <!-- UI Screens -->
+            <div id="mainMenu" class="screen">
+                <h1>Paper Glider</h1>
+                <div class="description">
+                    Blow into your microphone to keep your paper airplane flying!<br>
+                    Navigate through obstacles by controlling your glide path.<br>
+                    💨 Blow = Lift Up | 🪶 Silence = Glide Down
+                </div>
+                <button class="button" id="playButton">Loading...</button>
+            </div>
+             <div id="gameOverScreen" class="screen hidden">
+                <h2>Game Over</h2>
+                <p id="finalScore" style="font-size: 1.5em;"></p>
+                <button id="restartButton" class="button">Try Again</button>
+                <button id="mainMenuButton" class="button" style="margin-top: 1em; font-size: 1.2em;">Main Menu</button>
+            </div>
+
+            <!-- In-Game UI -->
+            <div id="score" class="hidden">Distance: 0m</div>
+            <div id="explosionOverlay">
+                <img id="explosionGif" src="splode.gif" alt="Explosion">
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
