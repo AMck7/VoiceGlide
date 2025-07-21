@@ -5,12 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Voice Glider - Voice-Controlled Game</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Comic+Neue:wght@300;400;700&display=swap" rel="stylesheet">
 </head>
 <body>
     <div id="gameContainer">
         <canvas id="gameCanvas"></canvas>
-        <div id="settingsIcon"><img src="gear.png" alt="Settings"></div>
-        <div id="pauseIcon" class="hidden"><img src="pause.png" alt="Pause"></div>
+    <div id="settingsIcon"><img src="assets/icons/gear.png" alt="Settings"></div>
+    <div id="pauseIcon" class="hidden"><img src="assets/icons/pause.png" alt="Pause"></div>
         <div id="uiLayer">
             <div id="mainMenu" class="screen">
                 <div id="mainMenuAnimations"></div>
@@ -29,8 +32,12 @@
                         <input type="range" id="micSensitivity" min="0.005" max="0.05" step="0.001">
                     </div>
                     <div class="setting-item">
-                        <label for="sfxVolume">Sound Volume</label>
+                        <label for="sfxVolume">SFX Volume</label>
                         <input type="range" id="sfxVolume" min="0" max="1" step="0.1">
+                    </div>
+                    <div class="setting-item">
+                        <label for="musicVolume">Music Volume</label>
+                        <input type="range" id="musicVolume" min="0" max="1" step="0.1">
                     </div>
                 </div>
                 <button id="backButton" class="button">Back</button>
@@ -41,7 +48,7 @@
                 <button id="pauseMainMenuButton" class="button button-secondary">Main Menu</button>
             </div>
              <div id="gameOverScreen" class="screen hidden">
-                <h2>Game Over</h2>
+                <h2>Game Over!</h2>
                 <p id="finalScore"></p>
                 <p id="gameOverHighScore" class="high-score-display"></p>
                 <button id="restartButton" class="button">Try Again</button>
@@ -49,7 +56,7 @@
             </div>
             <div id="score" class="hidden">Score: 0</div>
             <div id="explosionOverlay">
-                <img id="explosionGif" src="splode.gif" alt="Explosion">
+                <img id="explosionGif" src="assets/splode.gif" alt="Explosion">
             </div>
         </div>
     </div>

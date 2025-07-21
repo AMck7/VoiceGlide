@@ -37,6 +37,7 @@ const ui = {
     pauseMainMenuButton: getEl('pauseMainMenuButton'),
     micSensitivitySlider: getEl('micSensitivity'),
     sfxVolumeSlider: getEl('sfxVolume'),
+    musicVolumeSlider: getEl('musicVolume'),
     scoreEl: getEl('score'),
     finalScoreEl: getEl('finalScore'),
     mainMenuHighScoreEl: getEl('mainMenuHighScore'),
@@ -55,9 +56,12 @@ let gameState = {
     highScore: 0,
     frameCount: 0,
     glidingStartFrame: 0,
+    countdownEndFrame: 0,
     animationFrameId: null,
-    assets: { planeImage: null, explosionSound: null, clickSound: null },
-    settings: { micSensitivity: 0.02, sfxVolume: 0.5 }
+    assets: { planeImage: null, explosionSound: null, clickSound: null, gameplayMusic: null, gameOverSound: null },
+    settings: { micSensitivity: 0.02, sfxVolume: 0.5, musicVolume: 0.5 },
+    tipStartFrame: -1,
+    audioFadeInterval: null,
 };
 
 let audioState = {
@@ -78,12 +82,14 @@ function loadAsset(loader) {
 
 async function loadAssets() {
     try {
-        const [planeImage, explosionSound, clickSound] = await Promise.all([
-            loadAsset(resolve => { const i = new Image(); i.onload = () => resolve(i); i.src = 'plane.png'; }),
-            loadAsset(resolve => { const a = new Audio(); a.oncanplaythrough = () => resolve(a); a.src = 'splode.mp3'; }),
-            loadAsset(resolve => { const a = new Audio(); a.oncanplaythrough = () => resolve(a); a.src = 'click.mp3'; })
+        const [planeImage, explosionSound, clickSound, gameplayMusic, gameOverSound] = await Promise.all([
+            loadAsset(resolve => { const i = new Image(); i.onload = () => resolve(i); i.src = 'assets/plane.png'; }),
+            loadAsset(resolve => { const a = new Audio(); a.oncanplaythrough = () => resolve(a); a.src = 'assets/sounds/splode.mp3'; }),
+            loadAsset(resolve => { const a = new Audio(); a.oncanplaythrough = () => resolve(a); a.src = 'assets/sounds/click.mp3'; }),
+            loadAsset(resolve => { const a = new Audio(); a.oncanplaythrough = () => resolve(a); a.src = 'assets/music/lifeofriley.mp3'; a.loop = true; }),
+            loadAsset(resolve => { const a = new Audio(); a.oncanplaythrough = () => resolve(a); a.src = 'assets/sounds/dead.mp3'; })
         ]);
-        gameState.assets = { planeImage, explosionSound, clickSound };
+        gameState.assets = { planeImage, explosionSound, clickSound, gameplayMusic, gameOverSound };
         applySettings();
         ui.playButton.disabled = false;
         ui.playButton.textContent = 'Play';
@@ -130,10 +136,15 @@ function resetGameState() {
         momentum: 0, rotation: 0
     };
     gameState.obstacles = [];
+    
+    const firstGapY = Math.random() * (canvas.height - CONFIG.OBSTACLE_GAP_HEIGHT - 100) + 50;
+    gameState.obstacles.push({ x: canvas.width, y: firstGapY, id: 0 });
+
     gameState.score = 0;
     gameState.frameCount = 0;
     gameState.glidingStartFrame = 0;
     gameState.currentState = 'launching';
+    gameState.tipStartFrame = -1;
 }
 
 function runGameLoop() {
@@ -151,6 +162,7 @@ function runGameLoop() {
         case 'launching': updateLaunchAnimation(); break;
         case 'gliding': updateGlidingPhase(); break;
         case 'playing': updatePlayingPhase(); break;
+        case 'countdown': updateCountdown(); break;
         case 'crashed': break;
     }
 
@@ -189,6 +201,14 @@ function updateLaunchAnimation() {
     }
 }
 
+function updateCountdown() {
+    gameState.frameCount++;
+    if (gameState.frameCount >= gameState.countdownEndFrame) {
+        gameState.currentState = gameState.previousState;
+        gameState.previousState = null;
+    }
+}
+
 function updateGlidingPhase() {
     gameState.frameCount++;
     const { player } = gameState;
@@ -197,11 +217,12 @@ function updateGlidingPhase() {
     player.rotation = Math.cos(gameState.frameCount * 0.03) * 0.05;
     
     const blowIntensity = getBlowIntensity();
-    if (blowIntensity > CONFIG.BLOW_INTENSITY_THRESHOLD || gameState.frameCount - gameState.glidingStartFrame > 900) {
+    if (blowIntensity > CONFIG.BLOW_INTENSITY_THRESHOLD || gameState.frameCount - gameState.glidingStartFrame > 180) { 
         gameState.currentState = 'playing';
         gameState.frameCount = 0;
         player.blowIntensity = blowIntensity;
         player.rotation = 0;
+        player.x = player.targetX;
     }
 }
 
@@ -221,16 +242,18 @@ function updatePlayingPhase() {
 
     player.velocityY += CONFIG.PLAYER_GRAVITY + (player.momentum * CONFIG.PLAYER_MOMENTUM_GRAVITY_ADD);
     player.velocityY *= CONFIG.PLAYER_AIR_RESISTANCE;
-    player.velocityX = player.momentum * 0.5;
-
+    
     player.y += player.velocityY;
-    player.x += player.velocityX;
     player.velocityY = Math.max(CONFIG.PLAYER_MAX_VELOCITY_Y_UP, Math.min(CONFIG.PLAYER_MAX_VELOCITY_Y_DOWN, player.velocityY));
 
     if (player.y > ui.canvas.height - player.height) crashPlane(false);
     if (player.y < player.height / 2) {
         player.y = player.height / 2;
         player.velocityY = 0;
+    }
+
+    if (gameState.tipStartFrame === -1 && gameState.frameCount > 2700) { 
+        gameState.tipStartFrame = gameState.frameCount;
     }
 
     if (gameState.frameCount % CONFIG.SCORE_UPDATE_INTERVAL === 0) {
@@ -296,21 +319,35 @@ const rectsOverlap = (r1, r2) => r1.x < r2.x + r2.width && r1.x + r1.width > r2.
 function crashPlane() {
     gameState.currentState = 'crashed';
     ui.pauseIcon.classList.add('hidden');
+
+    if (gameState.assets.gameplayMusic) {
+        clearInterval(gameState.audioFadeInterval);
+        gameState.audioFadeInterval = null;
+        gameState.assets.gameplayMusic.pause();
+        gameState.assets.gameplayMusic.currentTime = 0;
+    }
+
     showExplosion(gameState.player.x, gameState.player.y);
     setTimeout(() => {
         endGame();
+        if (gameState.assets.gameOverSound) {
+            gameState.assets.gameOverSound.play().catch(e => console.error("Game over sound failed:", e));
+        }
         showScreen('gameOver');
     }, 1600);
 }
 
 function drawPlayer() {
     const { ctx } = ui;
-    const { player, currentState, assets } = gameState;
+    const { player, currentState, previousState, assets } = gameState;
     if (!assets.planeImage || currentState === 'crashed') return;
     
     ctx.save();
     ctx.translate(player.x, player.y);
-    const angle = currentState === 'playing' ? Math.atan2(player.velocityY, 5 + player.momentum) : player.rotation;
+
+    const effectiveState = currentState === 'countdown' ? previousState : currentState;
+    const angle = effectiveState === 'playing' ? Math.atan2(player.velocityY, 5 + player.momentum) : player.rotation;
+    
     ctx.rotate(angle);
 
     const h = 50, w = h * (assets.planeImage.naturalWidth / assets.planeImage.naturalHeight);
@@ -319,30 +356,94 @@ function drawPlayer() {
 }
 
 function drawUI() {
+    const { ctx, canvas } = ui;
     if (gameState.currentState === 'gliding') {
-        const { ctx, canvas } = ui;
         const framesIntoGliding = gameState.frameCount - gameState.glidingStartFrame;
-        const totalGlideDuration = 900; // Max duration of gliding phase
+        const totalGlideDuration = 900; 
         const fadeInDuration = 60;
         const fadeOutStart = totalGlideDuration - 120;
 
         let alpha = 0;
         if (framesIntoGliding < fadeInDuration) {
-            alpha = framesIntoGliding / fadeInDuration; // Fade in
+            alpha = framesIntoGliding / fadeInDuration; 
         } else if (framesIntoGliding >= fadeInDuration && framesIntoGliding < fadeOutStart) {
-            alpha = 1; // Stay visible
+            alpha = 1; 
         } else if (framesIntoGliding >= fadeOutStart && framesIntoGliding < totalGlideDuration) {
-            alpha = 1 - (framesIntoGliding - fadeOutStart) / (totalGlideDuration - fadeOutStart); // Fade out
+            alpha = 1 - (framesIntoGliding - fadeOutStart) / (totalGlideDuration - fadeOutStart); 
         }
         
         ctx.save();
         ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-        ctx.font = '28px Comic Sans MS';
+        ctx.font = '28px "Comic Neue", "Comic Sans MS", cursive';
         ctx.textAlign = 'center';
         ctx.globalAlpha = Math.max(0, alpha);
         ctx.fillText('💨 Blow into your mic to fly!', canvas.width / 2, 100);
         ctx.restore();
+    } else if (gameState.currentState === 'countdown') {
+        const remainingFrames = gameState.countdownEndFrame - gameState.frameCount;
+
+        let overlayAlpha = 0.5;
+        if (remainingFrames <= 60) { 
+            overlayAlpha = (remainingFrames / 60) * 0.5;
+        }
+
+        ctx.save();
+        ctx.fillStyle = `rgba(0, 0, 0, ${overlayAlpha})`;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.restore();
+
+        const countdownNumber = Math.ceil(remainingFrames / 60);
+        
+        const progress = (remainingFrames % 60) / 60;
+        const scale = 1 + (1 - progress) * 0.2; 
+        const alpha = Math.sin(progress * Math.PI); 
+
+        if (countdownNumber > 0) {
+            ctx.save();
+            ctx.translate(canvas.width / 2, canvas.height / 2);
+            ctx.scale(scale, scale);
+            
+            ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.9})`;
+            ctx.font = '120px "Comic Neue", "Comic Sans MS", cursive';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+            ctx.shadowBlur = 10;
+            ctx.shadowOffsetX = 3;
+            ctx.shadowOffsetY = 3;
+
+            ctx.fillText(countdownNumber, 0, 0);
+            ctx.restore();
+        }
     }
+
+    if (gameState.tipStartFrame !== -1) {
+        const framesSinceTipStart = gameState.frameCount - gameState.tipStartFrame;
+        const tipDuration = 480; 
+        const fadeInDuration = 60;
+        const fadeOutStart = tipDuration - 60;
+
+        let alpha = 0;
+        if (framesSinceTipStart < fadeInDuration) {
+            alpha = framesSinceTipStart / fadeInDuration;
+        } else if (framesSinceTipStart < fadeOutStart) {
+            alpha = 1;
+        } else if (framesSinceTipStart < tipDuration) {
+            alpha = 1 - (framesSinceTipStart - fadeOutStart) / (tipDuration - fadeOutStart);
+        }
+
+        if (alpha > 0) {
+            ctx.save();
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+            ctx.font = '20px "Comic Neue", "Comic Sans MS", cursive';
+            ctx.textAlign = 'center';
+            ctx.globalAlpha = alpha;
+            ctx.fillText("PLEASE take a moment to pause the game if you feel yourself getting lightheaded or just need a break! :)", canvas.width / 2, 60);
+            ctx.restore();
+        }
+    }
+
     ui.scoreEl.textContent = `Score: ${gameState.score}`;
 }
 
@@ -351,7 +452,7 @@ function showExplosion(x, y) {
     explosionOverlay.style.left = `${x - 110}px`;
     explosionOverlay.style.top = `${y - 110}px`;
     explosionOverlay.style.display = 'block';
-    explosionGif.src = 'splode.gif?t=' + Date.now();
+    explosionGif.src = 'assets/splode.gif?t=' + Date.now();
 
     const { explosionSound } = gameState.assets;
     explosionSound.currentTime = 0;
@@ -403,7 +504,12 @@ function applySettings() {
     ui.sfxVolumeSlider.value = gameState.settings.sfxVolume;
     if (gameState.assets.clickSound) gameState.assets.clickSound.volume = gameState.settings.sfxVolume;
     if (gameState.assets.explosionSound) gameState.assets.explosionSound.volume = gameState.settings.sfxVolume;
+    if (gameState.assets.gameOverSound) gameState.assets.gameOverSound.volume = gameState.settings.sfxVolume;
     updateSliderFill(ui.sfxVolumeSlider);
+
+    ui.musicVolumeSlider.value = gameState.settings.musicVolume;
+    if (gameState.assets.gameplayMusic) gameState.assets.gameplayMusic.volume = gameState.settings.musicVolume;
+    updateSliderFill(ui.musicVolumeSlider);
 
     ui.mainMenuHighScoreEl.textContent = `High Score: ${gameState.highScore}`;
 }
@@ -415,18 +521,60 @@ function playClickSound() {
     sound.play().catch(e => console.error("Click sound failed:", e));
 }
 
+function fadeAudio(audio, { to, duration, from }) {
+    if (!audio) return;
+    clearInterval(gameState.audioFadeInterval);
+
+    const targetVolume = to * gameState.settings.musicVolume;
+    const startVolume = from !== undefined ? from * gameState.settings.musicVolume : audio.volume;
+    
+    audio.volume = startVolume;
+    if (targetVolume > 0 && audio.paused) {
+        audio.currentTime = audio.currentTime > 0 ? audio.currentTime : 0;
+        audio.play().catch(e => console.error("Audio play failed:", e));
+    }
+
+    const steps = 50;
+    const stepDuration = duration / steps;
+    const volumeChange = targetVolume - startVolume;
+    const volumeStep = volumeChange / steps;
+    let currentStep = 0;
+
+    gameState.audioFadeInterval = setInterval(() => {
+        currentStep++;
+        const newVolume = startVolume + (currentStep * volumeStep);
+
+        if (currentStep >= steps) {
+            audio.volume = targetVolume;
+            if (targetVolume === 0) audio.pause();
+            clearInterval(gameState.audioFadeInterval);
+            gameState.audioFadeInterval = null;
+        } else {
+            audio.volume = newVolume;
+        }
+    }, stepDuration);
+}
+
 function pauseGame() {
     if (gameState.currentState === 'paused') return;
     cancelAnimationFrame(gameState.animationFrameId);
     gameState.previousState = gameState.currentState;
     gameState.currentState = 'paused';
+    if (gameState.assets.gameplayMusic) {
+        fadeAudio(gameState.assets.gameplayMusic, { to: 0, duration: 300 });
+    }
     showScreen('pause');
 }
 
 function resumeGame() {
     if (gameState.currentState !== 'paused') return;
-    gameState.currentState = gameState.previousState;
-    gameState.previousState = null;
+    if (gameState.assets.gameplayMusic) {
+        fadeAudio(gameState.assets.gameplayMusic, { to: 1, duration: 500 });
+    }
+    
+    gameState.currentState = 'countdown';
+    gameState.countdownEndFrame = gameState.frameCount + 180; 
+
     showScreen('game');
     runGameLoop();
 }
@@ -435,8 +583,12 @@ function transitionToScreen(targetScreenName) {
     const activeScreen = document.querySelector('.screen:not(.hidden)');
     if (activeScreen) {
         activeScreen.classList.add('fade-out');
+        if (!ui.settingsIcon.classList.contains('hidden')) {
+            ui.settingsIcon.classList.add('fade-out');
+        }
         setTimeout(() => {
             activeScreen.classList.remove('fade-out');
+            ui.settingsIcon.classList.remove('fade-out');
             showScreen(targetScreenName);
         }, 500);
     } else {
@@ -470,7 +622,6 @@ function showScreen(screenName) {
     } else if (screenName === 'settings') {
         gameState.currentState = 'settings';
         ui.settingsScreen.classList.remove('hidden');
-        ui.settingsIcon.classList.remove('hidden');
     } else if (screenName === 'pause') {
         ui.pauseScreen.classList.remove('hidden');
         ui.scoreEl.classList.remove('hidden');
@@ -482,9 +633,16 @@ function startGame() {
     navigator.mediaDevices.getUserMedia({ audio: true })
         .then(stream => {
             activeScreen.classList.add('fade-out');
+            if (!ui.settingsIcon.classList.contains('hidden')) {
+                ui.settingsIcon.classList.add('fade-out');
+            }
             setTimeout(() => {
                 activeScreen.classList.remove('fade-out');
+                ui.settingsIcon.classList.remove('fade-out');
                 showScreen('game');
+                if (gameState.assets.gameplayMusic) {
+                    fadeAudio(gameState.assets.gameplayMusic, { to: 1, duration: 1000, from: 0 });
+                }
                 setupGameAudio(stream);
                 resetGameState();
                 if (gameState.animationFrameId) cancelAnimationFrame(gameState.animationFrameId);
@@ -542,8 +700,16 @@ ui.sfxVolumeSlider.addEventListener('input', e => {
     gameState.settings.sfxVolume = e.target.value;
     if (gameState.assets.clickSound) gameState.assets.clickSound.volume = e.target.value;
     if (gameState.assets.explosionSound) gameState.assets.explosionSound.volume = e.target.value;
+    if (gameState.assets.gameOverSound) gameState.assets.gameOverSound.volume = e.target.value;
     updateSliderFill(e.target);
     playClickSound();
+    saveSettings();
+});
+
+ui.musicVolumeSlider.addEventListener('input', e => {
+    gameState.settings.musicVolume = e.target.value;
+    if (gameState.assets.gameplayMusic) gameState.assets.gameplayMusic.volume = e.target.value;
+    updateSliderFill(e.target);
     saveSettings();
 });
 
