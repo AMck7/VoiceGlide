@@ -46,6 +46,7 @@ const ui = {
     explosionOverlay: getEl('explosionOverlay'),
     explosionGif: getEl('explosionGif'),
     mainMenuAnimations: getEl('mainMenuAnimations'),
+    unsupportedDeviceScreen: getEl('unsupportedDeviceScreen'),
 };
 
 let gameState = {
@@ -601,7 +602,7 @@ function transitionToScreen(targetScreenName) {
 }
 
 function showScreen(screenName) {
-    [ui.mainMenu, ui.gameOverScreen, ui.settingsScreen, ui.pauseScreen].forEach(s => s.classList.add('hidden'));
+    [ui.mainMenu, ui.gameOverScreen, ui.settingsScreen, ui.pauseScreen, ui.unsupportedDeviceScreen].forEach(s => s.classList.add('hidden'));
     [ui.scoreEl, ui.settingsIcon, ui.pauseIcon].forEach(el => el.classList.add('hidden'));
 
     if (screenName === 'menu') {
@@ -629,6 +630,8 @@ function showScreen(screenName) {
     } else if (screenName === 'pause') {
         ui.pauseScreen.classList.remove('hidden');
         ui.scoreEl.classList.remove('hidden');
+    } else if (screenName === 'unsupported') {
+        ui.unsupportedDeviceScreen.classList.remove('hidden');
     }
 }
 
@@ -717,12 +720,16 @@ ui.musicVolumeSlider.addEventListener('input', e => {
     saveSettings();
 });
 
-ui.playButton.disabled = true;
 resizeCanvas();
-loadSettings();
-loadAssets().then(() => {
-    if (gameState.currentState === 'menu') {
-        createMainMenuAnimations();
-    }
-});
-showScreen('menu');
+if (CONFIG.IS_MOBILE()) {
+    showScreen('unsupported');
+} else {
+    ui.playButton.disabled = true;
+    loadSettings();
+    loadAssets().then(() => {
+        if (gameState.currentState === 'menu') {
+            createMainMenuAnimations();
+        }
+    });
+    showScreen('menu');
+}

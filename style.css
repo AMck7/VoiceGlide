@@ -106,6 +106,14 @@ body {
     color: #555;
 }
 
+#unsupportedDeviceScreen .description {
+    font-size: 1.3em;
+    max-width: 500px;
+    line-height: 1.5;
+    font-weight: 300;
+    color: #555;
+}
+
 #mainMenuAnimations {
     position: absolute;
     top: 0;
