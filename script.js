@@ -17,7 +17,6 @@ const CONFIG = {
     BLOW_SMOOTHING_FACTOR: 0.6,
     LAUNCH_DURATION_FRAMES: 150,
     SCORE_UPDATE_INTERVAL: 6,
-    IS_MOBILE: () => window.innerWidth <= 768,
 };
 
 const getEl = id => document.getElementById(id);
@@ -46,7 +45,6 @@ const ui = {
     explosionOverlay: getEl('explosionOverlay'),
     explosionGif: getEl('explosionGif'),
     mainMenuAnimations: getEl('mainMenuAnimations'),
-    unsupportedDeviceScreen: getEl('unsupportedDeviceScreen'),
 };
 
 let gameState = {
@@ -64,7 +62,6 @@ let gameState = {
     settings: { micSensitivity: 0.02, sfxVolume: 0.5, musicVolume: 0.5 },
     tipStartFrame: -1,
     audioFadeInterval: null,
-    mobile: false,
 };
 
 let audioState = {
@@ -77,8 +74,6 @@ let audioState = {
 function resizeCanvas() {
     ui.canvas.width = window.innerWidth;
     ui.canvas.height = window.innerHeight;
-    gameState.mobile = CONFIG.IS_MOBILE();
-    CONFIG.OBSTACLE_GAP_HEIGHT = gameState.mobile ? Math.min(300, ui.canvas.height * 0.4) : 300;
 }
 
 function loadAsset(loader) {
@@ -602,7 +597,7 @@ function transitionToScreen(targetScreenName) {
 }
 
 function showScreen(screenName) {
-    [ui.mainMenu, ui.gameOverScreen, ui.settingsScreen, ui.pauseScreen, ui.unsupportedDeviceScreen].forEach(s => s.classList.add('hidden'));
+    [ui.mainMenu, ui.gameOverScreen, ui.settingsScreen, ui.pauseScreen].forEach(s => s.classList.add('hidden'));
     [ui.scoreEl, ui.settingsIcon, ui.pauseIcon].forEach(el => el.classList.add('hidden'));
 
     if (screenName === 'menu') {
@@ -630,8 +625,6 @@ function showScreen(screenName) {
     } else if (screenName === 'pause') {
         ui.pauseScreen.classList.remove('hidden');
         ui.scoreEl.classList.remove('hidden');
-    } else if (screenName === 'unsupported') {
-        ui.unsupportedDeviceScreen.classList.remove('hidden');
     }
 }
 
@@ -720,16 +713,12 @@ ui.musicVolumeSlider.addEventListener('input', e => {
     saveSettings();
 });
 
+ui.playButton.disabled = true;
 resizeCanvas();
-if (CONFIG.IS_MOBILE()) {
-    showScreen('unsupported');
-} else {
-    ui.playButton.disabled = true;
-    loadSettings();
-    loadAssets().then(() => {
-        if (gameState.currentState === 'menu') {
-            createMainMenuAnimations();
-        }
-    });
-    showScreen('menu');
-}
+loadSettings();
+loadAssets().then(() => {
+    if (gameState.currentState === 'menu') {
+        createMainMenuAnimations();
+    }
+});
+showScreen('menu');
