@@ -300,3 +300,52 @@ body {
     height: 220px;
     object-fit: contain;
 }
+
+@media (max-width: 768px) {
+    #mainMenu h1 {
+        font-size: 3em;
+    }
+
+    #mainMenu .description {
+        font-size: 1em;
+        margin-bottom: 1.5em;
+    }
+
+    .button {
+        font-size: 1.5em;
+        padding: 0.6em 1.5em;
+    }
+
+    .button-secondary {
+        font-size: 1em;
+    }
+
+    #pauseScreen h2, #gameOverScreen h2 {
+        font-size: 3em;
+    }
+
+    #gameOverScreen p {
+        font-size: 1.2em;
+    }
+
+    #score {
+        font-size: 1.5em;
+        top: 15px;
+        left: 15px;
+    }
+
+    #pauseIcon, #settingsIcon {
+        top: 15px;
+        right: 15px;
+        width: 35px;
+        height: 35px;
+    }
+
+    .setting-item label {
+        font-size: 1.2em;
+    }
+
+    .settings-container {
+        gap: 1.5em;
+    }
+}

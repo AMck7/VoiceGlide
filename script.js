@@ -17,6 +17,7 @@ const CONFIG = {
     BLOW_SMOOTHING_FACTOR: 0.6,
     LAUNCH_DURATION_FRAMES: 150,
     SCORE_UPDATE_INTERVAL: 6,
+    IS_MOBILE: () => window.innerWidth <= 768,
 };
 
 const getEl = id => document.getElementById(id);
@@ -62,6 +63,7 @@ let gameState = {
     settings: { micSensitivity: 0.02, sfxVolume: 0.5, musicVolume: 0.5 },
     tipStartFrame: -1,
     audioFadeInterval: null,
+    mobile: false,
 };
 
 let audioState = {
@@ -74,6 +76,8 @@ let audioState = {
 function resizeCanvas() {
     ui.canvas.width = window.innerWidth;
     ui.canvas.height = window.innerHeight;
+    gameState.mobile = CONFIG.IS_MOBILE();
+    CONFIG.OBSTACLE_GAP_HEIGHT = gameState.mobile ? Math.min(300, ui.canvas.height * 0.4) : 300;
 }
 
 function loadAsset(loader) {
