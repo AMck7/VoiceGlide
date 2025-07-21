@@ -630,7 +630,11 @@ function showScreen(screenName) {
 
 function startGame() {
     const activeScreen = (gameState.currentState === 'menu') ? ui.mainMenu : ui.gameOverScreen;
-    navigator.mediaDevices.getUserMedia({ audio: true })
+    navigator.mediaDevices.getUserMedia({ audio: {
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false
+    } })
         .then(stream => {
             activeScreen.classList.add('fade-out');
             if (!ui.settingsIcon.classList.contains('hidden')) {
